@@ -31,6 +31,13 @@ public class Resume extends BaseDocument {
 	/** When true, treat as primary resume for the user (enforce single default in service layer). */
 	private boolean isDefault;
 
+	/** Plain text extracted from PDF (input for future LLM parsing). */
+	private String extractedText;
+
+	private ParseStatus parseStatus = ParseStatus.PENDING;
+
+	private String parseError;
+
 	private PersonalInfo personalInfo;
 
 	private String summary;
