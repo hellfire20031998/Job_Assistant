@@ -13,9 +13,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.hellFire.JobAssistant.config.JwtProperties;
+import com.hellFire.JobAssistant.model.User;
 import com.hellFire.JobAssistant.service.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,13 +55,8 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
 			getRedirectStrategy().sendRedirect(request, response, failureRedirectUrl);
 			return;
 		}
-		Object id = oauth2User.getAttribute(CustomOAuth2UserService.ATTR_APP_USER_ID);
-		if (id == null) {
-			getRedirectStrategy().sendRedirect(request, response, failureRedirectUrl);
-			return;
-		}
 		try {
-			var user = userService.requireById(id.toString());
+			User user = resolveUserForJwt(oauth2User);
 			String jwt = jwtService.createToken(user);
 
 			ResponseCookie cookie = ResponseCookie.from(jwtProperties.getCookieName(), jwt)
@@ -89,5 +86,17 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
 			log.warn("OAuth2 login success handling failed: {}", ex.toString());
 			getRedirectStrategy().sendRedirect(request, response, failureRedirectUrl);
 		}
+	}
+
+	/**
+	 * OIDC logins never receive {@link CustomOAuth2UserService}'s {@code appUserId} attribute; always upsert from
+	 * the OAuth principal so MongoDB has the user before issuing the JWT.
+	 */
+	private User resolveUserForJwt(OAuth2User oauth2User) {
+		Object appId = oauth2User.getAttribute(CustomOAuth2UserService.ATTR_APP_USER_ID);
+		if (appId != null && StringUtils.hasText(appId.toString())) {
+			return userService.requireById(appId.toString());
+		}
+		return userService.syncFromGoogle(oauth2User);
 	}
 }

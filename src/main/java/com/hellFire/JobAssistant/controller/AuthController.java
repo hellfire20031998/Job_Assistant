@@ -1,7 +1,7 @@
 package com.hellFire.JobAssistant.controller;
 
-import org.springframework.security.core.Authentication;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,8 +28,7 @@ public class AuthController {
 				|| authentication instanceof AnonymousAuthenticationToken) {
 			throw new BusinessException("Not authenticated", 401);
 		}
-		String userId = authentication.getName();
-		var user = userService.requireById(userId);
+		var user = userService.requireUserForMe(authentication);
 		return ApiResponse.ok(UserProfileResponse.from(user));
 	}
 }

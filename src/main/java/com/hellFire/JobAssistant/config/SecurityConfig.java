@@ -1,5 +1,9 @@
 package com.hellFire.JobAssistant.config;
 
+import java.util.Arrays;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,8 +17,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.hellFire.JobAssistant.security.CustomOAuth2UserService;
+import com.hellFire.JobAssistant.security.CustomOidcUserService;
 import com.hellFire.JobAssistant.security.JwtAuthenticationFilter;
 import com.hellFire.JobAssistant.security.JwtLogoutHandler;
 import com.hellFire.JobAssistant.security.OAuth2LoginFailureHandler;
@@ -31,6 +39,7 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 
 	private final CustomOAuth2UserService customOAuth2UserService;
+	private final CustomOidcUserService customOidcUserService;
 	private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
 	private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 	private final LogoutSuccessHandler oAuth2LogoutSuccessHandler;
@@ -40,9 +49,27 @@ public class SecurityConfig {
 	private final RestAccessDeniedHandler restAccessDeniedHandler;
 
 	@Bean
+	public CorsConfigurationSource corsConfigurationSource(
+			@Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:5173}") String allowedOrigins) {
+		CorsConfiguration configuration = new CorsConfiguration();
+		configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+				.map(String::trim)
+				.filter(s -> !s.isEmpty())
+				.toList());
+		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+		configuration.setAllowedHeaders(List.of("*"));
+		configuration.setAllowCredentials(true);
+		configuration.setMaxAge(3600L);
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", configuration);
+		return source;
+	}
+
+	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		http
 				.csrf(csrf -> csrf.disable())
+				.cors(Customizer.withDefaults())
 				.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 				.headers(headers -> headers
 						.contentTypeOptions(Customizer.withDefaults())
@@ -54,6 +81,7 @@ public class SecurityConfig {
 						.accessDeniedHandler(restAccessDeniedHandler))
 				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 				.authorizeHttpRequests(auth -> auth
+						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers(
 								"/api/v1/public/**",
 								"/api/v1/health",
@@ -67,7 +95,9 @@ public class SecurityConfig {
 						.anyRequest().authenticated()
 				)
 				.oauth2Login(oauth2 -> oauth2
-						.userInfoEndpoint(u -> u.userService(customOAuth2UserService))
+						.userInfoEndpoint(u -> u
+								.oidcUserService(customOidcUserService)
+								.userService(customOAuth2UserService))
 						.successHandler(oAuth2LoginSuccessHandler)
 						.failureHandler(oAuth2LoginFailureHandler)
 				)
