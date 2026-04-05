@@ -1,5 +1,11 @@
 HELP.md
 target/
+
+# Local secrets (never commit)
+server.env
+server.env.example
+.env
+.env.local
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
